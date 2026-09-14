@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>❤</title>
+  <style>
+    html, body {
+      height: 100%;
+      padding: 0;
+      margin: 0;
+      background: #000;
+      overflow: hidden;
+    }
+    canvas {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      display: block;
+      -webkit-tap-highlight-color: transparent;
+      animation: anim 1.5s ease-in-out infinite;
+      -webkit-animation: anim 1.5s ease-in-out infinite;
+    }
+    /* 名字：显示在爱心下方 */
+    #name {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 15%;
+      text-align: center;
+      font-size: 8vw;
+      color: #ff8fc0;
+      text-shadow: 0 0 14px rgba(255, 143, 192, 0.85), 0 2px 6px rgba(0, 0, 0, 0.4);
+      font-weight: bold;
+      pointer-events: none;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+    }
+    /* 副标题：一句悄悄话 */
+    #msg {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 9%;
+      text-align: center;
+      font-size: 4.2vw;
+      color: #ffd0e4;
+      text-shadow: 0 0 10px rgba(255, 208, 228, 0.6), 0 1px 4px rgba(0, 0, 0, 0.4);
+      pointer-events: none;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+    }
+    @keyframes anim {
+      0%   { transform: scale(0.8); }
+      25%  { transform: scale(0.7); }
+      50%  { transform: scale(1); }
+      75%  { transform: scale(0.7); }
+      100% { transform: scale(0.8); }
+    }
+    @-webkit-keyframes anim {
+      0%   { -webkit-transform: scale(0.8); }
+      25%  { -webkit-transform: scale(0.7); }
+      50%  { -webkit-transform: scale(1); }
+      75%  { -webkit-transform: scale(0.7); }
+      100% { -webkit-transform: scale(0.8); }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="pinkboard"></canvas>
+  <div id="name">送给你</div>
+  <div id="msg">❤ 一颗跳动的爱心 ❤</div>
+
+  <script>
+    /* ============================================================
+       配置区 —— 改这里就行
+       ============================================================ */
+    var NAME = "送给你";            // 主名字（爱心下方大字）
+    var MESSAGE = "❤ 一颗跳动的爱心 ❤"; // 副标题（一句话）
+    var PARTICLE_COUNT = 500;       // 粒子数量，越大越密
+    var PARTICLE_SIZE = 30;         // 单个粒子大小
+
+    var settings = {
+      particles: {
+        length: PARTICLE_COUNT,
+        duration: 2,
+        velocity: 100,
+        effect: -0.75,
+        size: PARTICLE_SIZE,
+      },
+    };
+
+    document.getElementById("name").textContent = NAME;
+    document.getElementById("msg").textContent = MESSAGE;
+
+    /* ============================================================
+       requestAnimationFrame 兼容（老微信 X5 内核也能用）
+       ============================================================ */
+    (function () {
+      var b = 0;
+      var c = ["ms", "moz", "webkit", "o"];
+      for (var a = 0; a < c.length && !window.requestAnimationFrame; ++a) {
+        window.requestAnimationFrame = window[c[a] + "RequestAnimationFrame"];
+        window.cancelAnimationFrame =
+          window[c[a] + "CancelAnimationFrame"] ||
+          window[c[a] + "CancelRequestAnimationFrame"];
+      }
+      if (!window.requestAnimationFrame) {
+        window.requestAnimationFrame = function (h, e) {
+          var d = new Date().getTime();
+          var f = Math.max(0, 16 - (d - b));
+          var g = window.setTimeout(function () { h(d + f); }, f);
+          b = d + f;
+          return g;
+        };
+      }
+      if (!window.cancelAnimationFrame) {
+        window.cancelAnimationFrame = function (d) { clearTimeout(d); };
+      }
+    })();
+
+    var Point = (function () {
+      function Point(x, y) {
+        this.x = typeof x !== "undefined" ? x : 0;
+        this.y = typeof y !== "undefined" ? y : 0;
+      }
+      Point.prototype.clone = function () { return new Point(this.x, this.y); };
+      Point.prototype.length = function (length) {
+        if (typeof length == "undefined")
+          return Math.sqrt(this.x * this.x + this.y * this.y);
+        this.normalize();
+        this.x *= length;
+        this.y *= length;
+        return this;
+      };
+      Point.prototype.normalize = function () {
+        var length = this.length();
+        this.x /= length;
+        this.y /= length;
+        return this;
+      };
+      return Point;
+    })();
+
+    var Particle = (function () {
+      function Particle() {
+        this.position = new Point();
+        this.velocity = new Point();
+        this.acceleration = new Point();
+        this.age = 0;
+      }
+      Particle.prototype.initialize = function (x, y, dx, dy) {
+        this.position.x = x;
+        this.position.y = y;
+        this.velocity.x = dx;
+        this.velocity.y = dy;
+        this.acceleration.x = dx * settings.particles.effect;
+        this.acceleration.y = dy * settings.particles.effect;
+        this.age = 0;
+      };
+      Particle.prototype.update = function (deltaTime) {
+        this.position.x += this.velocity.x * deltaTime;
+        this.position.y += this.velocity.y * deltaTime;
+        this.velocity.x += this.acceleration.x * deltaTime;
+        this.velocity.y += this.acceleration.y * deltaTime;
+        this.age += deltaTime;
+      };
+      Particle.prototype.draw = function (context, image) {
+        function ease(t) { return --t * t * t + 1; }
+        var size = image.width * ease(this.age / settings.particles.duration);
+        context.globalAlpha = 1 - this.age / settings.particles.duration;
+        context.drawImage(
+          image,
+          this.position.x - size / 2,
+          this.position.y - size / 2,
+          size,
+          size
+        );
+      };
+      return Particle;
+    })();
+
+    var ParticlePool = (function () {
+      var particles,
+        firstActive = 0,
+        firstFree = 0,
+        duration = settings.particles.duration;
+
+      function ParticlePool(length) {
+        particles = new Array(length);
+        for (var i = 0; i < particles.length; i++)
+          particles[i] = new Particle();
+      }
+      ParticlePool.prototype.add = function (x, y, dx, dy) {
+        particles[firstFree].initialize(x, y, dx, dy);
+        firstFree++;
+        if (firstFree == particles.length) firstFree = 0;
+        if (firstActive == firstFree) firstActive++;
+        if (firstActive == particles.length) firstActive = 0;
+      };
+      ParticlePool.prototype.update = function (deltaTime) {
+        var i;
+        if (firstActive < firstFree) {
+          for (i = firstActive; i < firstFree; i++)
+            particles[i].update(deltaTime);
+        }
+        if (firstFree < firstActive) {
+          for (i = firstActive; i < particles.length; i++)
+            particles[i].update(deltaTime);
+          for (i = 0; i < firstFree; i++) particles[i].update(deltaTime);
+        }
+        while (particles[firstActive].age >= duration && firstActive != firstFree) {
+          firstActive++;
+          if (firstActive == particles.length) firstActive = 0;
+        }
+      };
+      ParticlePool.prototype.draw = function (context, image) {
+        var i;
+        if (firstActive < firstFree) {
+          for (i = firstActive; i < firstFree; i++)
+            particles[i].draw(context, image);
+        }
+        if (firstFree < firstActive) {
+          for (i = firstActive; i < particles.length; i++)
+            particles[i].draw(context, image);
+          for (i = 0; i < firstFree; i++) particles[i].draw(context, image);
+        }
+      };
+      return ParticlePool;
+    })();
+
+    (function (canvas) {
+      var context = canvas.getContext("2d"),
+        particles = new ParticlePool(settings.particles.length),
+        particleRate = settings.particles.length / settings.particles.duration,
+        time,
+        W = 0,   // 视口 CSS 像素宽度
+        H = 0,   // 视口 CSS 像素高度
+        dpr = 1; // 设备像素比（高分屏适配）
+
+      function pointOnHeart(t) {
+        return new Point(
+          160 * Math.pow(Math.sin(t), 3),
+          130 * Math.cos(t) - 50 * Math.cos(2 * t) -
+          20 * Math.cos(3 * t) - 10 * Math.cos(4 * t) + 25
+        );
+      }
+
+      // 预生成一颗小心形作为粒子贴图
+      var image = (function () {
+        var c = document.createElement("canvas"),
+          ctx = c.getContext("2d");
+        c.width = settings.particles.size;
+        c.height = settings.particles.size;
+        function to(t) {
+          var point = pointOnHeart(t);
+          point.x = settings.particles.size / 2 +
+            (point.x * settings.particles.size) / 350;
+          point.y = settings.particles.size / 2 -
+            (point.y * settings.particles.size) / 350;
+          return point;
+        }
+        ctx.beginPath();
+        var t = -Math.PI;
+        var point = to(t);
+        ctx.moveTo(point.x, point.y);
+        while (t < Math.PI) {
+          t += 0.01;
+          point = to(t);
+          ctx.lineTo(point.x, point.y);
+        }
+        ctx.closePath();
+        ctx.fillStyle = "#ea80b0";
+        ctx.fill();
+        var img = new Image();
+        img.src = c.toDataURL();
+        return img;
+      })();
+
+      function render() {
+        requestAnimationFrame(render);
+        var newTime = new Date().getTime() / 1000,
+          deltaTime = newTime - (time || newTime);
+        time = newTime;
+
+        // 高分屏下按 DPR 缩放绘制，保证清晰
+        context.setTransform(dpr, 0, 0, dpr, 0, 0);
+        context.clearRect(0, 0, W, H);
+
+        var amount = particleRate * deltaTime;
+        for (var i = 0; i < amount; i++) {
+          var pos = pointOnHeart(Math.PI - 2 * Math.PI * Math.random());
+          var dir = pos.clone().length(settings.particles.velocity);
+          particles.add(W / 2 + pos.x, H / 2 - pos.y, dir.x, -dir.y);
+        }
+        particles.update(deltaTime);
+        particles.draw(context, image);
+      }
+
+      function onResize() {
+        dpr = window.devicePixelRatio || 1;
+        W = window.innerWidth;
+        H = window.innerHeight;
+        canvas.width = Math.round(W * dpr);
+        canvas.height = Math.round(H * dpr);
+      }
+
+      window.onresize = onResize;
+      window.onorientationchange = onResize;
+      setTimeout(function () {
+        onResize();
+        render();
+      }, 10);
+    })(document.getElementById("pinkboard"));
+  </script>
+</body>
+</html>
